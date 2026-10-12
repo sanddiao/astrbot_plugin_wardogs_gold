@@ -3,6 +3,6 @@ display_name: WARDOGS 金条价格
 short_desc: 查询 WARDOGS 游戏内金条当日价格与历史走势
 desc: 查询 WARDOGS 游戏内金条价格，支持查看区间走势与最近行情。数据源为社区维护的 wardogsfieldkit.com。
 astrbot_version: ">=3.4.28"
-author: your_name
+author: sanddiao
 version: "1.0.0"
-repo: ""
+repo: "https://github.com/sanddiao/astrbot_plugin_wardogs_gold"
