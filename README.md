@@ -1,22 +1,21 @@
 # astrbot_plugin_wardogs_gold
 
-查询 **WARDOGS** 游戏内金条（Gold Bar）当日价格与历史走势的 AstrBot 插件。
-
-数据源：[wardogsfieldkit.com](https://wardogsfieldkit.com/en/gold/)（社区维护，非官方）。
+AstrBot 插件：查询 WARDOGS 游戏内金条价格，并生成 JPG 走势图。
 
 ## 指令
+- `/gold [天数|all]` —— 文本查询价格与区间走势（别名 `/金条` `/金价`）
+- `/goldchart [天数|all]` —— 生成 JPG 走势图（别名 `/金价图` `/金条走势`）
 
-| 指令 | 说明 |
-| --- | --- |
-| `金条` / `金价` | 当前 1 根金条的价格，附前一日对比 |
-| `金条 7` | 最近 7 天走势（带迷你走势条），最多 30 天 |
-| `金条历史` | 全量样本数、区间、最高/最低/均值 |
+示例：`/gold 30`、`/gold all`、`/goldchart 90`、`/goldchart all`
 
-## 实现说明
+## 安装
+1. 将本插件文件夹复制到 AstrBot 的 `data/plugins/`
+2. 安装依赖：`pip install -r requirements.txt`
+3. 在 WebUI「插件管理」重载插件
 
-金价页面里内嵌了一段 `[{"date": "2026-10-11", "rate": 272761}, ...]` 的 JSON，
-插件直接按 `type="application/json"` 的脚本块提取，不做 DOM 解析，改版时只依赖这一个结构。
+## 数据源
+wardogsfieldkit.com 的 Gold Price & History 页面（社区追踪，非官方）。
+价格每日 UTC 0 点刷新，新一天汇率未公布时显示最近已知日期。
 
-- 结果缓存 10 分钟，避免刷站
-- 站点不可达或页面结构变化时只回一句提示，不抛异常
-- 不依赖第三方库，用 AstrBot 自带的 `aiohttp`
+## 依赖
+Pillow>=9.0.0（绘图引擎）
