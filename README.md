@@ -1,0 +1,2 @@
+# astrbot_plugin_wardogs_gold
+用于测试wardogs金条查询插件是否成功
