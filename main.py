@@ -14,7 +14,7 @@ AstrBot 插件：WARDOGS 游戏内金条价格查询
   /goldchart      生成近 30 天金条价格走势图（.jpg）
   /goldchart 90   生成近 90 天走势图
   /goldchart all  生成全部历史走势图
-别名：/金条  /金价  /wardogsgold  /金价图  /金条走势  /goldchart
+别名：/金条  /金价  /wardogsgold  /金价图  /金条走势
 """
 
 from __future__ import annotations
@@ -28,7 +28,21 @@ import urllib.request
 from typing import List, Dict, Optional
 
 from astrbot.api.event import filter, AstrMessageEvent
-from astrbot.api.star import Context, Star, register
+from astrbot.api.star import Context, Star
+
+try:
+    # 旧版 AstrBot（<= 3.x）通过 @register 声明插件元信息
+    from astrbot.api.star import register
+except ImportError:  # pragma: no cover - 新版 AstrBot 已移除该符号
+    # 新版 AstrBot 不再提供 register，插件完全由 metadata.yaml 注册。
+    # 这里退化成空装饰器，保证同一份代码在新旧版本都能加载成功。
+    def register(*args, **kwargs):
+        def _deco(cls):
+            return cls
+
+        return _deco
+
+
 from astrbot.api import logger
 from astrbot.api.message_components import Image, Plain
 
@@ -38,6 +52,37 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AstrBot-WARDOGS-Gold/1.0"
 
 # 用于文本走势图的 Unicode 方块字符（由低到高）
 SPARK = "▁▂▃▄▅▆▇█"
+
+# 本插件注册的全部指令名（含别名），用于从 message_str 中剥离指令本身
+COMMAND_TOKENS = {
+    "gold",
+    "金条",
+    "金价",
+    "wardogsgold",
+    "goldchart",
+    "金价图",
+    "金条走势",
+}
+
+
+def cmd(name: str, aliases=()):
+    """注册指令，并兼容不支持 `alias` 参数的旧版 AstrBot。
+
+    新版 filter.command(name, alias={...}) 支持别名；
+    旧版没有 alias 关键字，会抛 TypeError，此时改为堆叠注册多个指令名，
+    效果等价，避免因参数不支持而让整个插件加载失败。
+    """
+
+    def _deco(func):
+        try:
+            return filter.command(name, alias=set(aliases))(func)
+        except TypeError:
+            wrapped = filter.command(name)(func)
+            for a in aliases:
+                wrapped = filter.command(a)(wrapped)
+            return wrapped
+
+    return _deco
 
 
 def _http_get(url: str, timeout: int = 15) -> str:
@@ -162,15 +207,31 @@ def build_report(days: Optional[int]) -> str:
 def _parse_days(arg: str) -> Optional[int]:
     """把指令参数解析为天数。
 
-    - ""          -> 7（默认近 7 天）
-    - "all"/"全部" -> None（全部历史）
-    - "30"        -> 30
+    - ""                  -> 7（默认近 7 天）
+    - "all"/"全部"/*       -> None（全部历史）
+    - "30"                -> 30
+    - "/金价 7" / "金价 7"  -> 7（部分版本 message_str 会带上指令名，需剥离）
     非法输入抛出 ValueError。
     """
-    arg = (arg or "").strip().lower()
-    if arg in ("", "all", "全部"):
-        return None if arg in ("all", "全部") else 7
-    return int(arg)
+    raw = (arg or "").strip()
+    if not raw:
+        return 7
+
+    tokens = raw.split()
+    # 剥离开头可能出现的指令名（如 "/金价"、"金价"、"#gold"）
+    head = tokens[0].lstrip("/#")
+    if head in COMMAND_TOKENS or tokens[0].startswith(("/", "#")):
+        tokens = tokens[1:]
+
+    if not tokens:
+        return 7
+
+    token = tokens[0].lower()
+    if token in ("all", "全部", "*"):
+        return None
+    if token.isdigit():
+        return int(token)
+    raise ValueError(f"无法解析的天数参数：{token!r}")
 
 
 def _slice_series(series: List[Dict[str, object]], days: Optional[int]) -> List[Dict[str, object]]:
@@ -305,8 +366,13 @@ def build_chart(days: Optional[int], save_path: str) -> str:
 class WardogsGoldPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
+        # 这行日志是排查"指令没被接住"的关键：加载成功时控制台一定会看到它
+        logger.info(
+            "[wardogs_gold] 插件已加载，可用指令："
+            "/gold /goldchart /金条 /金价 /金价图 /金条走势"
+        )
 
-    @filter.command("gold", alias={"金条", "金价", "wardogsgold"})
+    @cmd("gold", aliases={"金条", "金价", "wardogsgold"})
     async def gold(self, event: AstrMessageEvent):
         """查询 WARDOGS 金条价格。用法：/gold [天数|all]，例如 /gold 30 或 /gold all"""
         try:
@@ -319,7 +385,7 @@ class WardogsGoldPlugin(Star):
             report = f"查询金条价格失败：{e}"
         yield event.plain_result(report)
 
-    @filter.command("goldchart", alias={"金价图", "金条走势", "goldchart"})
+    @cmd("goldchart", aliases={"金价图", "金条走势"})
     async def goldchart(self, event: AstrMessageEvent):
         """生成 WARDOGS 金条价格走势图（.jpg）。用法：/goldchart [天数|all]，例如 /goldchart 90 或 /goldchart all"""
         try:
